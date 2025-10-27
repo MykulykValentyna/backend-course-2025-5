@@ -1,0 +1,20 @@
+1. Створення тестового файлу
+echo "test image data" > test_image.jpg
+
+2. PUT (201 Created)
+curl -X PUT http://localhost:3000/200 -H "Content-Type: image/jpeg" --data-binary "@test_image.jpg"
+
+3. GET існуючого файлу (200 OK)
+curl -X GET http://localhost:3000/200 --output downloaded.jpg
+
+4. DELETE існуючого файлу (200 OK)
+curl -X DELETE http://localhost:3000/200
+
+5. GET неіснуючого файлу (404 Not Found)
+curl -X GET http://localhost:3000/999
+
+6. DELETE неіснуючого файлу (404 Not Found)
+curl -X DELETE http://localhost:3000/999
+
+7. Method Not Allowed (405)
+curl -X POST http://localhost:3000/200
