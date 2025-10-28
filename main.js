@@ -3,6 +3,7 @@ const http = require('http');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
+const superagent = require('superagent');
 
 const program = new Command();
 program
@@ -26,8 +27,18 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'image/jpeg' });
       res.end(image);
     } catch {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Not Found\n');
+      try {
+        const response = await superagent
+          .get(`https://http.cat/${urlCode}.jpg`)
+          .responseType('arraybuffer');
+        const imageBuffer = Buffer.from(response.body);
+        await fs.writeFile(imagePath, imageBuffer);
+        res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+        res.end(imageBuffer);
+      } catch (error) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not Found\n');
+      }
     }
   } else if (req.method === 'PUT') {
     const chunks = [];
