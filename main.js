@@ -7,77 +7,78 @@ const superagent = require('superagent');
 
 const program = new Command();
 program
-  .requiredOption('-h, --host <type>', 'server address (required)')
-  .requiredOption('-p, --port <type>', 'server port (required)')
-  .requiredOption('-c, --cache <type>', 'cache directory path (required)')
+  .requiredOption('-h, --host <type>', 'server address')
+  .requiredOption('-p, --port <type>', 'server port') 
+  .requiredOption('-c, --cache <type>', 'cache directory path');
 program.parse();
 const options = program.opts();
 
-// Створюємо директорію кешу, якщо її немає
+//ініціалізація кеш директорії
 if (!fsSync.existsSync(options.cache)) {
    fsSync.mkdirSync(options.cache, { recursive: true });
-   console.log(Cache directory created: ${options.cache});
+   console.log(`Cache directory created: ${options.cache}`);
 }
 
+//створення HTTP сервера
 const server = http.createServer(async function(req, res) {
-  // Отримуємо HTTP код з URL (/200 = "200")
   const httpCode = req.url.split('/')[1];
-  const imagePath = path.join(options.cache, ${httpCode}.jpg);
+  const imagePath = path.join(options.cache, `${httpCode}.jpg`);
   try {
     switch (req.method) {
-    case 'GET':
-    try {
-        // Спробувати отримати з кешу
-        const image = await fs.readFile(imagePath); //читає файл з диска
-        res.writeHead(200, { 'Content-Type': 'image/jpeg' });
-        res.end(image);
-    } catch (error) {
-        if (error.code === 'ENOENT') {
-        // якщо немає в кеші - запит до http.cat
+      case 'GET':
+        //отримання картинки - спочатку з кешу, потім з інтернету
         try {
-            const response = await superagent
-              .get(https://http.cat/${httpCode}.jpg)
-              .buffer(true);
-            const imageBuffer = response.body; 
-            // Зберегти в кеш
-            await fs.writeFile(imagePath, imageBuffer); //imageBuffer - бінарні дані картинки
-            // Відправити клієнту
-            res.writeHead(200, { 'Content-Type': 'image/jpeg' });
-            res.end(imageBuffer);
-        } catch (httpCatError) {
-            console.error('http.cat error:', httpCatError.message);
-            res.writeHead(404, { 'Content-Type': 'text/plain' });
-            res.end('Not Found');
+          const image = await fs.readFile(imagePath);
+          res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+          res.end(image);
+        } catch (error) {
+          if (error.code === 'ENOENT') {
+            try {
+              const response = await superagent
+                .get(`https://http.cat/${httpCode}.jpg`)
+                .buffer(true);
+              const imageBuffer = response.body;
+              
+              await fs.writeFile(imagePath, imageBuffer);
+              res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+              res.end(imageBuffer);
+            } catch (httpCatError) {
+              res.writeHead(404, { 'Content-Type': 'text/plain' });
+              res.end('Not Found');
+            }
+          } else {
+            throw error;
+          }
         }
-        } else {
-        throw error;
-        }
-    }
-    break;
-    case 'PUT':
-    let putBody = [];
-    req.on("data", function(chunk) {
-        putBody.push(chunk);
-    });
-    req.on("end", async function() {
-        try {
+        break;
+        
+      case 'PUT':
+        //завантаження картинки на сервер
+        let putBody = [];
+        req.on("data", function(chunk) {
+          putBody.push(chunk);
+        });
+        req.on("end", async function() {
+          try {
             const putImageData = Buffer.concat(putBody);
             await fs.writeFile(imagePath, putImageData);
             res.writeHead(201, { 'Content-Type': 'text/plain' });
             res.end('Created');
-        } catch (error) {
+          } catch (error) {
             res.writeHead(500, { 'Content-Type': 'text/plain' });
             res.end('Server Error');
-        }
-    });
-    break;
+          }
+        });
+        break;
+        
       case 'DELETE':
+        //видалення картинки з кешу
         try {
           await fs.unlink(imagePath);
           res.writeHead(200, { 'Content-Type': 'text/plain' });
           res.end('OK');
         } catch (error) {
-          if (error.code === 'ENOENT') { 
+          if (error.code === 'ENOENT') {
             res.writeHead(404, { 'Content-Type': 'text/plain' });
             res.end('Not Found');
           } else {
@@ -85,21 +86,27 @@ const server = http.createServer(async function(req, res) {
           }
         }
         break;
+        
       default:
+        //обробка недозволених методів
         res.writeHead(405, { 'Content-Type': 'text/plain' });
         res.end('Method Not Allowed');
     }
   } catch (error) {
+    //загальна обробка помилок сервера
     console.error('Server error:', error);
     res.writeHead(500, { 'Content-Type': 'text/plain' });
     res.end('Internal Server Error');
   }
 });
 
+//запуск сервера
 server.listen(options.port, options.host, function() {
-  console.log(Server running at http://${options.host}:${options.port});
-  console.log(Cache directory: ${options.cache});
+  console.log(`Server running at http://${options.host}:${options.port}`);
+  console.log(`Cache directory: ${options.cache}`);
 });
+
+//обробка помилок сервера
 server.on('error', function(error) {
   console.error('Server error:', error.message);
   process.exit(1);
